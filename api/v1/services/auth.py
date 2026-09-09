@@ -107,3 +107,101 @@ def authenticate_user(username: str, password: str):
         return False
 
     return user
+
+def change_password(username: str, old_password: str, new_password: str):
+    """Change a user's password"""
+
+    # Find user in memory
+    user = users_db.get(username)
+
+    # If not in memory, check database
+    if not user:
+        try:
+            conn = get_db_connection()
+
+            result = conn.execute(
+                "SELECT username, password, role FROM users WHERE username = ?",
+                (username,)
+            ).fetchone()
+
+            conn.close()
+
+            if result:
+                user = {
+                    "username": result[0],
+                    "password": result[1],
+                    "role": result[2]
+                }
+
+                # Cache user in memory
+                users_db[username] = user
+
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"Database error: {str(e)}"
+            }
+
+    # User doesn't exist
+    if not user:
+        return {
+            "success": False,
+            "message": "User not found"
+        }
+
+    # Verify old password
+    if not verify_password(old_password, user["password"]):
+        return {
+            "success": False,
+            "message": "Current password is incorrect"
+        }
+
+    # Validate new password
+    if not new_password or len(new_password) < 6:
+        return {
+            "success": False,
+            "message": "New password must be at least 6 characters long"
+        }
+
+    # Bcrypt password limit
+    if len(new_password) > 72:
+        return {
+            "success": False,
+            "message": "New password must be less than 72 characters long"
+        }
+
+    # Don't allow the same password
+    if verify_password(new_password, user["password"]):
+        return {
+            "success": False,
+            "message": "New password must be different from the old password"
+        }
+
+    # Hash new password
+    new_hashed_password = pwd_context.hash(new_password)
+
+    # Update SQLite database
+    try:
+        conn = get_db_connection()
+
+        conn.execute(
+            "UPDATE users SET password = ? WHERE username = ?",
+            (new_hashed_password, username)
+        )
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Database error: {str(e)}"
+        }
+
+    # Update memory
+    users_db[username]["password"] = new_hashed_password
+
+    return {
+        "success": True,
+        "message": "Password changed successfully"
+    }
