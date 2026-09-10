@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from api.core.security import create_access_token
 from api.v1.schemas.user import Token, User
-from api.v1.services.auth import authenticate_user, register_user
+from api.v1.services.auth import authenticate_user, register_user, change_password
 
 
 router = APIRouter()
@@ -69,3 +69,11 @@ def login(
         "access_token": access_token,
         "token_type": "bearer"
     }
+@router.post("/change-password")
+
+def change_password_route(
+    username: str,
+    old_password: str,
+    new_password: str
+):
+    return change_password(username, old_password, new_password)
